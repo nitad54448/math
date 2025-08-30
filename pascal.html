@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pascal's Triangle Visualizer</title>
+    <link href="./dist/output.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0c0a09; /* stone-950 */
+            overflow: hidden;
+        }
+        .main-container {
+            display: flex;
+            height: calc(100vh - 65px);
+        }
+        #left-panel {
+            flex-basis: 320px;
+            flex-shrink: 0;
+            min-width: 250px;
+            background: rgba(17, 24, 39, 0.8); /* bg-gray-900 with opacity */
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+        #resize-handle {
+            flex-basis: 6px;
+            flex-shrink: 0;
+            cursor: col-resize;
+            background-color: rgba(55, 65, 81, 0.5); /* gray-700 with opacity */
+            transition: background-color 0.2s ease;
+        }
+        #resize-handle:hover {
+            background-color: rgba(59, 130, 246, 0.7); /* blue-500 with opacity */
+        }
+        #right-panel {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 0;
+            background-color: #0c0a09;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            background-color: #111827; /* gray-900 */
+        }
+        #left-panel::-webkit-scrollbar { width: 8px; }
+        #left-panel::-webkit-scrollbar-track { background: #1f2937; } /* gray-800 */
+        #left-panel::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; } /* gray-600 */
+        #left-panel::-webkit-scrollbar-thumb:hover { background: #6b7280; } /* gray-500 */
+
+        /* Custom styles for buttons */
+        .btn {
+            @apply text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900;
+        }
+        .btn-green {
+            @apply bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500;
+        }
+        .btn-blue {
+            @apply bg-sky-600 hover:bg-sky-700 focus:ring-sky-500;
+        }
+        .btn-gray {
+            @apply bg-gray-600 hover:bg-gray-700 focus:ring-gray-500;
+        }
+
+    </style>
+</head>
+<body class="text-gray-200 flex flex-col h-screen">
+
+    <header class="text-center py-4 bg-gray-900/80 border-b border-gray-700/50" style="flex-shrink: 0;">
+        <h1 class="text-2xl md:text-3xl text-white font-bold tracking-tight">Pascal's Triangle Visualizer</h1>
+    </header>
+
+    <div class="main-container">
+        <!-- Left Control Panel -->
+        <div id="left-panel">
+            <div>
+                <h2 class="text-lg font-semibold text-white mb-3 border-b border-gray-600 pb-2">Controls</h2>
+                <div class="space-y-4">
+                    <!-- Control Buttons -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="startPauseBtn" class="btn btn-green">Start</button>
+                        <button id="resetBtn" class="btn btn-gray">Reset</button>
+                    </div>
+
+                    <!-- Sliders -->
+                    <div>
+                        <label for="rowsSlider" class="block text-sm font-medium text-gray-300">Number of Rows: <span id="rowsValue">12</span></label>
+                        <input id="rowsSlider" type="range" min="2" max="40" value="12" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label for="speedSlider" class="block text-sm font-medium text-gray-300">Animation Speed: <span id="speedValue">25</span>ms</label>
+                        <input id="speedSlider" type="range" min="0" max="200" value="25" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </div>
+                
+                <!-- Description -->
+                <div class="mt-6 pt-4 border-t border-gray-600">
+                     <h3 class="text-md font-semibold text-white mb-2">Pascal's Triangle</h3>
+                     <p id="description" class="text-gray-400 text-sm">
+                        A triangular array of binomial coefficients. Each number is the sum of the two numbers directly above it. Coloring the cells by their parity (even/odd) reveals a fractal pattern known as the Sierpinski triangle.
+                     </p>
+                </div>
+            </div>
+            <footer class="mt-auto pt-4">
+                <p class="text-xs text-gray-500 text-center">NitaD, Univ Paris-Saclay, 2025.</p>
+            </footer>
+        </div>
+
+        <!-- Resizer -->
+        <div id="resize-handle"></div>
+
+        <!-- Right Canvas Panel -->
+        <div id="right-panel">
+            <canvas id="pascalCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Element References ---
+            const canvas = document.getElementById('pascalCanvas');
+            const ctx = canvas.getContext('2d');
+            const leftPanel = document.getElementById('left-panel');
+            const rightPanel = document.getElementById('right-panel');
+            const resizeHandle = document.getElementById('resize-handle');
+
+            const startPauseBtn = document.getElementById('startPauseBtn');
+            const resetBtn = document.getElementById('resetBtn');
+
+            const rowsSlider = document.getElementById('rowsSlider');
+            const rowsValueSpan = document.getElementById('rowsValue');
+            const speedSlider = document.getElementById('speedSlider');
+            const speedValueSpan = document.getElementById('speedValue');
+
+            // --- State Variables ---
+            let isResizing = false;
+            let maxRows = 12;
+            let speed = 25;
+            let triangle = [];
+            let animationInterval = null;
+            let isRunning = false;
+            let currentRow = 0;
+            let currentCol = 0;
+
+            // --- Colors ---
+            const COLOR = {
+                BACKGROUND: '#111827',
+                EVEN: '#15803d', // green-700
+                ODD: '#be123c',  // rose-700
+                TEXT: '#f0f9ff'  // sky-50
+            };
+            
+            // --- Setup and Initialization ---
+            function setup() {
+                clearInterval(animationInterval);
+                isRunning = false;
+                startPauseBtn.textContent = 'Start';
+                startPauseBtn.disabled = false;
+                startPauseBtn.classList.remove('btn-blue');
+                startPauseBtn.classList.add('btn-green');
+
+                maxRows = parseInt(rowsSlider.value);
+                rowsValueSpan.textContent = maxRows;
+                speed = parseInt(speedSlider.value);
+                speedValueSpan.textContent = `${speed}ms`;
+                
+                triangle = [];
+                currentRow = 0;
+                currentCol = 0;
+
+                resizeCanvas(); 
+            }
+
+            // --- Canvas and Drawing ---
+            function resizeCanvas() {
+                canvas.width = rightPanel.clientWidth;
+                canvas.height = rightPanel.clientHeight;
+                drawTriangle();
+            }
+
+            function drawTriangle() {
+                ctx.fillStyle = COLOR.BACKGROUND;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                if (triangle.length === 0) return;
+
+                const padding = 20;
+                const cellWidth = (canvas.width - 2 * padding) / maxRows;
+                const cellHeight = (canvas.height - 2 * padding) / maxRows;
+                const cellSize = Math.min(cellWidth, cellHeight);
+                
+                const startY = padding + (canvas.height - 2*padding - maxRows * cellSize) / 2;
+
+                const fontSize = Math.max(6, Math.min(16, cellSize * 0.4));
+                ctx.font = `bold ${fontSize}px Inter`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                for (let r = 0; r < triangle.length; r++) {
+                    const row = triangle[r];
+                    const rowWidth = row.length * cellSize;
+                    const startX = (canvas.width - rowWidth) / 2;
+                    
+                    for (let c = 0; c < row.length; c++) {
+                        const value = row[c];
+                        const x = startX + c * cellSize;
+                        const y = startY + r * cellSize;
+                        
+                        ctx.fillStyle = value % 2 === 0 ? COLOR.EVEN : COLOR.ODD;
+                        ctx.beginPath();
+                        ctx.arc(x + cellSize / 2, y + cellSize / 2, cellSize / 2 - 1, 0, 2 * Math.PI);
+                        ctx.fill();
+
+                        ctx.fillStyle = COLOR.TEXT;
+                        if(cellSize > 15) { 
+                            ctx.fillText(value, x + cellSize / 2, y + cellSize / 2);
+                        }
+                    }
+                }
+            }
+
+            // --- Pascal's Triangle Logic ---
+            function pascalStep() {
+                if(currentRow >= maxRows) {
+                    finalize();
+                    return;
+                }
+                
+                if(!triangle[currentRow]) {
+                    triangle[currentRow] = [];
+                }
+
+                let value;
+                if (currentCol === 0 || currentCol === currentRow) {
+                    value = 1;
+                } else {
+                    const prevRow = triangle[currentRow - 1];
+                    value = prevRow[currentCol - 1] + prevRow[currentCol];
+                }
+                triangle[currentRow].push(value);
+
+                currentCol++;
+                if (currentCol > currentRow) {
+                    currentRow++;
+                    currentCol = 0;
+                }
+                
+                drawTriangle();
+            }
+
+            function finalize() {
+                clearInterval(animationInterval);
+                isRunning = false;
+                startPauseBtn.textContent = 'Done';
+                startPauseBtn.disabled = true;
+            }
+
+            // --- Event Listeners ---
+            startPauseBtn.addEventListener('click', () => {
+                isRunning = !isRunning;
+                if (isRunning) {
+                    startPauseBtn.textContent = 'Pause';
+                    startPauseBtn.classList.remove('btn-green');
+                    startPauseBtn.classList.add('btn-blue');
+                    animationInterval = setInterval(pascalStep, speed);
+                } else {
+                    startPauseBtn.textContent = 'Resume';
+                    startPauseBtn.classList.remove('btn-blue');
+                    startPauseBtn.classList.add('btn-green');
+                    clearInterval(animationInterval);
+                }
+            });
+
+            resetBtn.addEventListener('click', setup);
+            
+            rowsSlider.addEventListener('input', (e) => {
+                rowsValueSpan.textContent = e.target.value;
+            });
+            rowsSlider.addEventListener('change', setup);
+            
+            speedSlider.addEventListener('input', (e) => {
+                speed = parseInt(e.target.value);
+                speedValueSpan.textContent = `${speed}ms`;
+                if(isRunning) {
+                    clearInterval(animationInterval);
+                    animationInterval = setInterval(pascalStep, speed);
+                }
+            });
+
+            resizeHandle.addEventListener('mousedown', () => { isResizing = true; document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; });
+            document.addEventListener('mousemove', (e) => { if (isResizing) { const newWidth = e.clientX; if (newWidth > 250 && newWidth < window.innerWidth - 250) { leftPanel.style.flexBasis = `${newWidth}px`; resizeCanvas(); } } });
+            document.addEventListener('mouseup', () => { isResizing = false; document.body.style.cursor = 'default'; document.body.style.userSelect = ''; });
+            window.addEventListener('resize', resizeCanvas);
+
+
+            // --- Initial Setup ---
+            setup();
+        });
+    </script>
+</body>
+</html>
+

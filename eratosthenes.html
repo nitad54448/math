@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sieve of Eratosthenes Visualizer</title>
+    <link href="./dist/output.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0c0a09; /* stone-950 */
+            overflow: hidden;
+        }
+        .main-container {
+            display: flex;
+            height: calc(100vh - 65px);
+        }
+        #left-panel {
+            flex-basis: 320px;
+            flex-shrink: 0;
+            min-width: 250px;
+            background: rgba(17, 24, 39, 0.8); /* bg-gray-900 with opacity */
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+        #resize-handle {
+            flex-basis: 6px;
+            flex-shrink: 0;
+            cursor: col-resize;
+            background-color: rgba(55, 65, 81, 0.5); /* gray-700 with opacity */
+            transition: background-color 0.2s ease;
+        }
+        #resize-handle:hover {
+            background-color: rgba(59, 130, 246, 0.7); /* blue-500 with opacity */
+        }
+        #right-panel {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 0;
+            background-color: #0c0a09;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            background-color: #111827; /* gray-900 */
+        }
+        #left-panel::-webkit-scrollbar { width: 8px; }
+        #left-panel::-webkit-scrollbar-track { background: #1f2937; } /* gray-800 */
+        #left-panel::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; } /* gray-600 */
+        #left-panel::-webkit-scrollbar-thumb:hover { background: #6b7280; } /* gray-500 */
+
+        /* Custom styles for buttons */
+        .btn {
+            @apply text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900;
+        }
+        .btn-green {
+            @apply bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500;
+        }
+        .btn-blue {
+            @apply bg-sky-600 hover:bg-sky-700 focus:ring-sky-500;
+        }
+        .btn-gray {
+            @apply bg-gray-600 hover:bg-gray-700 focus:ring-gray-500;
+        }
+
+    </style>
+</head>
+<body class="text-gray-200 flex flex-col h-screen">
+
+    <header class="text-center py-4 bg-gray-900/80 border-b border-gray-700/50" style="flex-shrink: 0;">
+        <h1 class="text-2xl md:text-3xl text-white font-bold tracking-tight">Sieve of Eratosthenes Visualizer</h1>
+    </header>
+
+    <div class="main-container">
+        <!-- Left Control Panel -->
+        <div id="left-panel">
+            <div>
+                <h2 class="text-lg font-semibold text-white mb-3 border-b border-gray-600 pb-2">Controls</h2>
+                <div class="space-y-4">
+                    <!-- Control Buttons -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="startPauseBtn" class="btn btn-green">Start</button>
+                        <button id="resetBtn" class="btn btn-gray">Reset</button>
+                    </div>
+
+                    <!-- Sliders -->
+                    <div>
+                        <label for="limitSlider" class="block text-sm font-medium text-gray-300">Numbers to Sieve: <span id="limitValue">100</span></label>
+                        <input id="limitSlider" type="range" min="10" max="1000" value="100" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label for="speedSlider" class="block text-sm font-medium text-gray-300">Animation Speed: <span id="speedValue">50</span>ms</label>
+                        <input id="speedSlider" type="range" min="0" max="200" value="50" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </div>
+                
+                <!-- Description -->
+                <div class="mt-6 pt-4 border-t border-gray-600">
+                     <h3 class="text-md font-semibold text-white mb-2">The Sieve of Eratosthenes</h3>
+                     <p id="description" class="text-gray-400 text-sm">
+                        An ancient and efficient algorithm for finding all prime numbers up to a specified integer. It works by iteratively marking as composite (i.e., not prime) the multiples of each prime, starting with the first prime number, 2.
+                     </p>
+                </div>
+            </div>
+            <footer class="mt-auto pt-4">
+                <p class="text-xs text-gray-500 text-center">NitaD, Univ Paris-Saclay, 2025.</p>
+            </footer>
+        </div>
+
+        <!-- Resizer -->
+        <div id="resize-handle"></div>
+
+        <!-- Right Canvas Panel -->
+        <div id="right-panel">
+            <canvas id="sieveCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Element References ---
+            const canvas = document.getElementById('sieveCanvas');
+            const ctx = canvas.getContext('2d');
+            const leftPanel = document.getElementById('left-panel');
+            const rightPanel = document.getElementById('right-panel');
+            const resizeHandle = document.getElementById('resize-handle');
+
+            const startPauseBtn = document.getElementById('startPauseBtn');
+            const resetBtn = document.getElementById('resetBtn');
+
+            const limitSlider = document.getElementById('limitSlider');
+            const limitValueSpan = document.getElementById('limitValue');
+            const speedSlider = document.getElementById('speedSlider');
+            const speedValueSpan = document.getElementById('speedValue');
+
+            // --- State Variables ---
+            let isResizing = false;
+            let limit = 100;
+            let speed = 50;
+            let numbers = [];
+            let animationInterval = null;
+            let isRunning = false;
+            let currentPrime = 2;
+            let currentMultiple = 2;
+
+            // --- Colors ---
+            const COLOR = {
+                BACKGROUND: '#111827',
+                NEUTRAL: '#4b5563',
+                NEUTRAL_TEXT: '#d1d5db',
+                PRIME: '#2563eb',
+                PRIME_TEXT: '#ffffff',
+                MARKING: '#f59e0b',
+                MARKED: '#991b1b',
+                MARKED_TEXT: '#fca5a5'
+            };
+            
+            // --- Setup and Initialization ---
+            function setup() {
+                clearInterval(animationInterval);
+                isRunning = false;
+                startPauseBtn.textContent = 'Start';
+                startPauseBtn.classList.remove('btn-blue');
+                startPauseBtn.classList.add('btn-green');
+
+                limit = parseInt(limitSlider.value);
+                limitValueSpan.textContent = limit;
+                speed = parseInt(speedSlider.value);
+                speedValueSpan.textContent = `${speed}ms`;
+                
+                numbers = Array(limit + 1).fill(null).map((_, i) => ({
+                    value: i,
+                    marked: false,
+                    isPrime: i > 1, // Assume all are prime initially (except 0, 1)
+                    color: COLOR.NEUTRAL,
+                    textColor: COLOR.NEUTRAL_TEXT,
+                }));
+                
+                if(numbers[0]) {
+                    numbers[0].isPrime = false;
+                    numbers[0].color = COLOR.MARKED;
+                    numbers[0].textColor = COLOR.MARKED_TEXT;
+                }
+                if(numbers[1]) {
+                    numbers[1].isPrime = false;
+                    numbers[1].color = COLOR.MARKED;
+                    numbers[1].textColor = COLOR.MARKED_TEXT;
+                }
+
+                currentPrime = 2;
+                currentMultiple = 2 * currentPrime;
+
+                resizeCanvas(); // This will trigger the first draw
+            }
+
+            // --- Canvas and Drawing ---
+            function resizeCanvas() {
+                canvas.width = rightPanel.clientWidth;
+                canvas.height = rightPanel.clientHeight;
+                drawGrid();
+            }
+
+            function drawGrid() {
+                ctx.fillStyle = COLOR.BACKGROUND;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                const padding = 10;
+                const availableWidth = canvas.width - 2 * padding;
+                const availableHeight = canvas.height - 2 * padding;
+
+                let cols = Math.floor(Math.sqrt(limit * (availableWidth / availableHeight)));
+                let cellSize = availableWidth / cols;
+                let rows = Math.ceil(limit / cols);
+
+                if (rows * cellSize > availableHeight) {
+                    rows = Math.floor(availableHeight / cellSize);
+                    cellSize = availableHeight / rows;
+                    cols = Math.ceil(limit/rows);
+                }
+
+                const fontSize = Math.max(8, Math.min(18, cellSize * 0.4));
+                ctx.font = `bold ${fontSize}px Inter`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                for (let i = 1; i <= limit; i++) {
+                    const num = numbers[i];
+                    if (!num) continue;
+                    
+                    const col = (i - 1) % cols;
+                    const row = Math.floor((i - 1) / cols);
+
+                    const x = padding + col * cellSize;
+                    const y = padding + row * cellSize;
+
+                    ctx.fillStyle = num.color;
+                    ctx.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+
+                    ctx.fillStyle = num.textColor;
+                    if(cellSize > 15) { // Only draw numbers if cells are big enough
+                        ctx.fillText(num.value, x + cellSize / 2, y + cellSize / 2);
+                    }
+                }
+            }
+
+            // --- Sieve Algorithm Logic ---
+            function sieveStep() {
+                if(currentPrime * currentPrime > limit) {
+                    finalizeSieve();
+                    return;
+                }
+                
+                // Highlight the current prime
+                numbers[currentPrime].color = COLOR.PRIME;
+                numbers[currentPrime].textColor = COLOR.PRIME_TEXT;
+                
+                // Mark the current multiple
+                if(currentMultiple <= limit) {
+                    if (numbers[currentMultiple]) {
+                         numbers[currentMultiple].marked = true;
+                         numbers[currentMultiple].isPrime = false;
+                         numbers[currentMultiple].color = COLOR.MARKING; // temporary color
+                    }
+
+                    // Schedule next steps
+                    setTimeout(() => {
+                        if (numbers[currentMultiple]) {
+                            numbers[currentMultiple].color = COLOR.MARKED;
+                            numbers[currentMultiple].textColor = COLOR.MARKED_TEXT;
+                        }
+                        drawGrid();
+                        currentMultiple += currentPrime;
+                    }, speed / 2);
+                    
+                } else {
+                    // Move to the next prime
+                    let nextPrime = currentPrime + 1;
+                    while (nextPrime <= limit && (numbers[nextPrime].marked || !numbers[nextPrime].isPrime)) {
+                        nextPrime++;
+                    }
+
+                    if (nextPrime * nextPrime > limit) {
+                        finalizeSieve();
+                        return;
+                    }
+
+                    currentPrime = nextPrime;
+                    currentMultiple = currentPrime * currentPrime; // Start marking from p^2
+                }
+                drawGrid();
+            }
+
+            function finalizeSieve() {
+                clearInterval(animationInterval);
+                isRunning = false;
+                startPauseBtn.textContent = 'Done';
+                startPauseBtn.disabled = true;
+
+                // Highlight all remaining unmarked numbers as prime
+                for (let i = 2; i <= limit; i++) {
+                    if (numbers[i] && !numbers[i].marked) {
+                        numbers[i].color = COLOR.PRIME;
+                        numbers[i].textColor = COLOR.PRIME_TEXT;
+                    }
+                }
+                drawGrid();
+            }
+
+            // --- Event Listeners ---
+            startPauseBtn.addEventListener('click', () => {
+                isRunning = !isRunning;
+                if (isRunning) {
+                    startPauseBtn.textContent = 'Pause';
+                    startPauseBtn.classList.remove('btn-green');
+                    startPauseBtn.classList.add('btn-blue');
+                    animationInterval = setInterval(sieveStep, speed);
+                } else {
+                    startPauseBtn.textContent = 'Resume';
+                    startPauseBtn.classList.remove('btn-blue');
+                    startPauseBtn.classList.add('btn-green');
+                    clearInterval(animationInterval);
+                }
+            });
+
+            resetBtn.addEventListener('click', () => {
+                startPauseBtn.disabled = false;
+                setup();
+            });
+            
+            limitSlider.addEventListener('input', (e) => {
+                limitValueSpan.textContent = e.target.value;
+            });
+            limitSlider.addEventListener('change', setup);
+            
+            speedSlider.addEventListener('input', (e) => {
+                speed = parseInt(e.target.value);
+                speedValueSpan.textContent = `${speed}ms`;
+                if(isRunning) {
+                    clearInterval(animationInterval);
+                    animationInterval = setInterval(sieveStep, speed);
+                }
+            });
+
+            resizeHandle.addEventListener('mousedown', () => { isResizing = true; document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; });
+            document.addEventListener('mousemove', (e) => { if (isResizing) { const newWidth = e.clientX; if (newWidth > 250 && newWidth < window.innerWidth - 250) { leftPanel.style.flexBasis = `${newWidth}px`; resizeCanvas(); } } });
+            document.addEventListener('mouseup', () => { isResizing = false; document.body.style.cursor = 'default'; document.body.style.userSelect = ''; });
+            window.addEventListener('resize', resizeCanvas);
+
+
+            // --- Initial Setup ---
+            setup();
+        });
+    </script>
+</body>
+</html>

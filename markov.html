@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markov Chain Simulator</title>
+    <link href="./dist/output.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0c0a09; /* stone-950 */
+            overflow: hidden;
+        }
+        .main-container {
+            display: flex;
+            height: calc(100vh - 65px);
+        }
+        #left-panel {
+            flex-basis: 380px;
+            flex-shrink: 0;
+            min-width: 300px;
+            background: rgba(17, 24, 39, 0.8); /* bg-gray-900 with opacity */
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+        }
+        #resize-handle {
+            flex-basis: 6px;
+            flex-shrink: 0;
+            cursor: col-resize;
+            background-color: rgba(55, 65, 81, 0.5); /* gray-700 with opacity */
+            transition: background-color 0.2s ease;
+        }
+        #resize-handle:hover {
+            background-color: rgba(59, 130, 246, 0.7); /* blue-500 with opacity */
+        }
+        #right-panel {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            background-color: #0c0a09;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            background-color: #111827; /* gray-900 */
+        }
+        #left-panel::-webkit-scrollbar { width: 8px; }
+        #left-panel::-webkit-scrollbar-track { background: #1f2937; } /* gray-800 */
+        #left-panel::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; } /* gray-600 */
+        #left-panel::-webkit-scrollbar-thumb:hover { background: #6b7280; } /* gray-500 */
+        
+        .btn { @apply text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed; }
+        .btn-blue { @apply bg-sky-600 hover:bg-sky-700 focus:ring-sky-500; }
+        .btn-gray { @apply bg-gray-600 hover:bg-gray-700 focus:ring-gray-500; }
+
+        .matrix-input:disabled { @apply bg-gray-800 text-gray-400 cursor-not-allowed; }
+    </style>
+</head>
+<body class="text-gray-200 flex flex-col h-screen">
+
+    <header class="text-center py-4 bg-gray-900/80 border-b border-gray-700/50" style="flex-shrink: 0;">
+        <h1 class="text-2xl md:text-3xl text-white font-bold tracking-tight">Markov Chain Simulator</h1>
+    </header>
+
+    <div class="main-container">
+        <!-- Left Control Panel -->
+        <div id="left-panel">
+            <div>
+                <h2 class="text-lg font-semibold text-white mb-4 border-b border-gray-600 pb-2">Controls</h2>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-3 gap-2">
+                        <button id="startBtn" class="btn btn-blue">Start</button>
+                        <button id="stepBtn" class="btn btn-gray">Step</button>
+                        <button id="resetBtn" class="btn btn-gray">Reset</button>
+                    </div>
+                     <div>
+                        <label for="speedSlider" class="block text-sm font-medium text-gray-300">Simulation Speed</label>
+                        <input id="speedSlider" type="range" min="50" max="2000" value="500" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer mt-1">
+                    </div>
+                </div>
+                
+                 <div class="mt-6 pt-4 border-t border-gray-600 grid grid-cols-2 gap-4 text-center">
+                    <div>
+                        <h3 class="text-md font-semibold text-white mb-2">Current State</h3>
+                        <div id="currentStateDisplay" class="text-2xl font-bold tracking-tight bg-gray-800/50 p-3 rounded-lg min-h-[52px] flex items-center justify-center">-</div>
+                    </div>
+                    <div>
+                        <h3 class="text-md font-semibold text-white mb-2">Step</h3>
+                        <div id="stepDisplay" class="text-2xl font-bold tracking-tight bg-gray-800/50 p-3 rounded-lg min-h-[52px] flex items-center justify-center">0</div>
+                    </div>
+                </div>
+
+                <div class="mt-6 pt-4 border-t border-gray-600">
+                     <h3 class="text-md font-semibold text-white mb-2">Transition Matrix (P)</h3>
+                     <p class="text-gray-400 text-xs mb-2">
+                        The value at row <span class="font-bold text-amber-400">i</span>, col <span class="font-bold text-sky-400">j</span> is the probability of moving from state <span class="font-bold text-amber-400">i</span> to state <span class="font-bold text-sky-400">j</span>. Rows auto-adjust to sum to 1.
+                     </p>
+                     <div id="matrixContainer" class="space-y-1"></div>
+                </div>
+
+                 <div class="mt-6 pt-4 border-t border-gray-600">
+                     <h3 class="text-md font-semibold text-white mb-2">What is a Markov Chain?</h3>
+                     <p class="text-gray-400 text-sm">
+                        A Markov chain describes a sequence of events where the probability of the next event depends only on the current state, not the past. This "memoryless" property makes it useful for modeling systems like weather patterns, Google search, financial markets, and more.
+                     </p>
+                </div>
+            </div>
+            <footer class="mt-auto pt-4">
+                <p class="text-xs text-gray-500 text-center">NitaD, Univ Paris-Saclay, 2025</p>
+            </footer>
+        </div>
+
+        <div id="resize-handle"></div>
+
+        <div id="right-panel">
+            <canvas id="simulationCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('simulationCanvas');
+            const ctx = canvas.getContext('2d');
+            const leftPanel = document.getElementById('left-panel');
+            const rightPanel = document.getElementById('right-panel');
+            const resizeHandle = document.getElementById('resize-handle');
+            
+            const startBtn = document.getElementById('startBtn');
+            const stepBtn = document.getElementById('stepBtn');
+            const resetBtn = document.getElementById('resetBtn');
+            const speedSlider = document.getElementById('speedSlider');
+            const currentStateDisplay = document.getElementById('currentStateDisplay');
+            const stepDisplay = document.getElementById('stepDisplay');
+            const matrixContainer = document.getElementById('matrixContainer');
+
+            const model = {
+                states: [
+                    { name: 'Sunny', color: '#f59e0b' },   // amber-500
+                    { name: 'Cloudy', color: '#9ca3af' },  // gray-400
+                    { name: 'Rainy', color: '#3b82f6' },   // blue-500
+                ],
+                //      To: Sunny, Cloudy, Rainy
+                matrix: [
+                    [0.8, 0.2, 0.0],  // From Sunny
+                    [0.4, 0.4, 0.2],  // From Cloudy
+                    [0.2, 0.6, 0.2],  // From Rainy
+                ]
+            };
+            
+            let isResizing = false;
+            let currentState = 0;
+            let stepCount = 0;
+            let isRunning = false;
+            let statePositions = [];
+            let stateVisitCounts = new Array(model.states.length).fill(0);
+            let simulationTimeout;
+
+            const COLOR = {
+                BACKGROUND: '#111827',
+                TEXT: 'rgba(255, 255, 255, 0.9)',
+                ARROW: 'rgba(255, 255, 255, 0.5)',
+            };
+
+            function setup() {
+                clearTimeout(simulationTimeout);
+                
+                currentState = 0;
+                stepCount = 0;
+                isRunning = false;
+                stateVisitCounts.fill(0);
+                stateVisitCounts[currentState]++;
+                
+                startBtn.textContent = 'Start';
+                startBtn.classList.replace('bg-red-600', 'btn-blue');
+                startBtn.classList.replace('hover:bg-red-700', 'hover:bg-sky-700');
+                
+                stepBtn.disabled = false;
+                
+                updateDisplays();
+                buildMatrixUI();
+                resizeCanvas();
+            }
+            
+            function buildMatrixUI() {
+                matrixContainer.innerHTML = '';
+                const header = document.createElement('div');
+                header.className = 'grid grid-cols-4 gap-1 text-xs font-bold text-center';
+                header.innerHTML = `<div>From ↓ To →</div>` + model.states.map(s => `<div class="text-sky-400">${s.name}</div>`).join('');
+                matrixContainer.appendChild(header);
+
+                model.matrix.forEach((row, i) => {
+                    const rowDiv = document.createElement('div');
+                    rowDiv.className = 'grid grid-cols-4 gap-1 text-center items-center';
+                    let rowHTML = `<div class="text-amber-400 text-xs font-bold">${model.states[i].name}</div>`;
+                    row.forEach((prob, j) => {
+                         rowHTML += `<div><input type="number" min="0" max="1" step="0.01" value="${prob.toFixed(2)}" 
+                                    class="matrix-input w-full bg-gray-700/50 rounded p-1 text-sm text-center transition-colors" 
+                                    data-row="${i}" data-col="${j}"></div>`;
+                    });
+                    rowDiv.innerHTML = rowHTML;
+                    matrixContainer.appendChild(rowDiv);
+                });
+                
+                document.querySelectorAll('.matrix-input').forEach(input => {
+                    input.addEventListener('change', handleMatrixChange);
+                });
+            }
+            
+            function handleMatrixChange(event) {
+                const target = event.target;
+                const row = parseInt(target.dataset.row);
+                const col = parseInt(target.dataset.col);
+                let newValue = parseFloat(target.value);
+
+                // Clamp new value between 0 and 1
+                if (isNaN(newValue)) newValue = 0;
+                newValue = Math.max(0, Math.min(1, newValue));
+                
+                const currentRow = model.matrix[row];
+                currentRow[col] = newValue;
+
+                // Calculate the sum of the other elements in the row
+                let otherSum = 0;
+                for (let j = 0; j < currentRow.length; j++) {
+                    if (j !== col) {
+                        otherSum += currentRow[j];
+                    }
+                }
+
+                const remainder = 1.0 - newValue;
+
+                // Normalize the other elements to make the row sum to 1
+                if (Math.abs(otherSum) < 1e-9) { // If other elements were all 0
+                    const distValue = remainder / (currentRow.length - 1);
+                    for (let j = 0; j < currentRow.length; j++) {
+                        if (j !== col) {
+                            currentRow[j] = distValue;
+                        }
+                    }
+                } else {
+                    const scale = remainder / otherSum;
+                    for (let j = 0; j < currentRow.length; j++) {
+                        if (j !== col) {
+                            currentRow[j] *= scale;
+                        }
+                    }
+                }
+                
+                // Ensure row sums to exactly 1 due to potential floating point errors
+                let finalSum = currentRow.reduce((a, b) => a + b, 0);
+                if(Math.abs(finalSum - 1.0) > 1e-9) {
+                    currentRow[col] += (1.0 - finalSum);
+                }
+
+                // Update the UI for the entire row to reflect the auto-adjustments
+                document.querySelectorAll(`.matrix-input[data-row="${row}"]`).forEach(input => {
+                    const inputCol = parseInt(input.dataset.col);
+                    input.value = currentRow[inputCol].toFixed(2);
+                });
+
+                draw();
+            }
+
+            function toggleSimulation() {
+                isRunning = !isRunning;
+                document.querySelectorAll('.matrix-input').forEach(input => input.disabled = isRunning);
+
+                if (isRunning) {
+                    startBtn.textContent = 'Pause';
+                    startBtn.classList.replace('btn-blue', 'bg-red-600');
+                    startBtn.classList.replace('hover:bg-sky-700', 'hover:bg-red-700');
+                    stepBtn.disabled = true;
+                    simulationLoop();
+                } else {
+                    startBtn.textContent = 'Start';
+                    startBtn.classList.replace('bg-red-600', 'btn-blue');
+                    startBtn.classList.replace('hover:bg-red-700', 'hover:bg-sky-700');
+                    stepBtn.disabled = false;
+                    clearTimeout(simulationTimeout);
+                }
+            }
+            
+            function simulationStep() {
+                const probabilities = model.matrix[currentState];
+                const rand = Math.random();
+                let cumulativeProb = 0;
+
+                for (let i = 0; i < probabilities.length; i++) {
+                    cumulativeProb += probabilities[i];
+                    if (rand < cumulativeProb) {
+                        currentState = i;
+                        break;
+                    }
+                }
+                stepCount++;
+                stateVisitCounts[currentState]++;
+                updateDisplays();
+                draw();
+            }
+            
+            function simulationLoop() {
+                if (!isRunning) return;
+                simulationStep();
+                const speed = 2050 - speedSlider.value;
+                simulationTimeout = setTimeout(simulationLoop, speed);
+            }
+            
+            function updateDisplays() {
+                const state = model.states[currentState];
+                currentStateDisplay.textContent = state.name;
+                currentStateDisplay.style.color = state.color;
+                stepDisplay.textContent = stepCount;
+            }
+
+            function resizeCanvas() {
+                canvas.width = rightPanel.clientWidth;
+                canvas.height = rightPanel.clientHeight;
+                calculateNodePositions();
+                draw();
+            }
+            
+            function calculateNodePositions() {
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height * 0.45; // Center Y in the top part of the canvas
+                const radius = Math.min(canvas.width, canvas.height * 0.8) / 3;
+                statePositions = model.states.map((_, i) => {
+                    const angle = (i / model.states.length) * 2 * Math.PI - Math.PI / 2;
+                    return {
+                        x: centerX + radius * Math.cos(angle),
+                        y: centerY + radius * Math.sin(angle),
+                    };
+                });
+            }
+
+            function draw() {
+                ctx.fillStyle = COLOR.BACKGROUND;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                if (statePositions.length === 0) return;
+
+                const nodeRadius = Math.min(canvas.width, canvas.height) * 0.08;
+
+                // --- Draw Arrows ---
+                drawArrows(nodeRadius);
+
+                // --- Draw Nodes ---
+                model.states.forEach((state, i) => {
+                    const pos = statePositions[i];
+                    ctx.fillStyle = state.color;
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, nodeRadius, 0, 2 * Math.PI);
+                    ctx.fill();
+                    
+                    if (i === currentState) {
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 4;
+                        ctx.stroke();
+                    }
+                    
+                    ctx.fillStyle = '#000';
+                    ctx.font = `bold ${nodeRadius * 0.3}px Inter`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(state.name, pos.x, pos.y);
+                });
+
+                // --- Draw Distribution Chart ---
+                drawDistributionChart();
+            }
+            
+            function drawArrows(nodeRadius) {
+                 ctx.strokeStyle = COLOR.ARROW;
+                 ctx.fillStyle = COLOR.ARROW;
+                 model.matrix.forEach((row, fromIdx) => {
+                    row.forEach((prob, toIdx) => {
+                        if (prob > 0.001) { // Only draw if probability is significant
+                            const fromPos = statePositions[fromIdx];
+                            const toPos = statePositions[toIdx];
+                            if (fromIdx === toIdx) {
+                                // Self-loop
+                                const loopRadius = nodeRadius * 1.2;
+                                ctx.beginPath();
+                                ctx.arc(fromPos.x, fromPos.y - loopRadius, loopRadius, Math.PI * 0.8, Math.PI * 0.2, true);
+                                ctx.lineWidth = 1 + prob * 5;
+                                ctx.stroke();
+                            } else {
+                                // Arrow between nodes
+                                const angle = Math.atan2(toPos.y - fromPos.y, toPos.x - fromPos.x);
+                                const startX = fromPos.x + nodeRadius * Math.cos(angle);
+                                const startY = fromPos.y + nodeRadius * Math.sin(angle);
+                                const endX = toPos.x - nodeRadius * Math.cos(angle);
+                                const endY = toPos.y - nodeRadius * Math.sin(angle);
+                                
+                                const midX = (startX + endX) / 2;
+                                const midY = (startY + endY) / 2;
+                                const dx = endX - startX;
+                                const dy = endY - startY;
+                                const ctrlOffsetX = -dy * 0.2;
+                                const ctrlOffsetY = dx * 0.2;
+
+                                ctx.beginPath();
+                                ctx.moveTo(startX, startY);
+                                ctx.quadraticCurveTo(midX + ctrlOffsetX, midY + ctrlOffsetY, endX, endY);
+                                ctx.lineWidth = 1 + prob * 5;
+                                ctx.stroke();
+
+                                // Arrowhead
+                                ctx.save();
+                                ctx.translate(endX, endY);
+                                ctx.rotate(Math.atan2(endY - (midY+ctrlOffsetY), endX - (midX+ctrlOffsetX)));
+                                ctx.beginPath();
+                                ctx.moveTo(0,0);
+                                ctx.lineTo(-10, -5);
+                                ctx.lineTo(-10, 5);
+                                ctx.closePath();
+                                ctx.fill();
+                                ctx.restore();
+                            }
+                        }
+                    });
+                });
+            }
+            
+            function drawDistributionChart() {
+                const chartY = canvas.height * 0.85;
+                const chartHeight = canvas.height * 0.1;
+                const barWidth = canvas.width * 0.8 / model.states.length;
+                const startX = canvas.width * 0.1;
+                
+                ctx.font = `14px Inter`;
+                ctx.textAlign = 'center';
+                
+                if(stepCount === 0 && stateVisitCounts.reduce((a, b) => a + b, 0) <= 1) return;
+
+                model.states.forEach((state, i) => {
+                    const totalVisits = stepCount > 0 ? stepCount : 1;
+                    const percentage = stateVisitCounts[i] / totalVisits;
+                    const barHeight = percentage * chartHeight;
+                    
+                    ctx.fillStyle = state.color;
+                    ctx.fillRect(startX + i * barWidth, chartY - barHeight, barWidth * 0.9, barHeight);
+                    
+                    ctx.fillStyle = COLOR.TEXT;
+                    ctx.fillText(`${(percentage * 100).toFixed(1)}%`, startX + i * barWidth + (barWidth*0.9)/2, chartY + 15);
+                });
+            }
+            
+            startBtn.addEventListener('click', toggleSimulation);
+            stepBtn.addEventListener('click', simulationStep);
+            resetBtn.addEventListener('click', setup);
+
+            resizeHandle.addEventListener('mousedown', () => { isResizing = true; document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; });
+            document.addEventListener('mousemove', (e) => { if (isResizing) { const newWidth = e.clientX; if (newWidth > 300 && newWidth < window.innerWidth - 250) { leftPanel.style.flexBasis = `${newWidth}px`; resizeCanvas(); } } });
+            document.addEventListener('mouseup', () => { isResizing = false; document.body.style.cursor = 'default'; document.body.style.userSelect = ''; });
+            window.addEventListener('resize', resizeCanvas);
+
+            setup();
+        });
+    </script>
+</body>
+</html>
+

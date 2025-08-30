@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfect Numbers Visualizer</title>
+ <link href="./dist/output.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0c0a09; /* stone-950 */
+            overflow: hidden;
+        }
+        .main-container {
+            display: flex;
+            height: calc(100vh - 65px);
+        }
+        #left-panel {
+            flex-basis: 320px;
+            flex-shrink: 0;
+            min-width: 250px;
+            background: rgba(17, 24, 39, 0.8); /* bg-gray-900 with opacity */
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+        #resize-handle {
+            flex-basis: 6px;
+            flex-shrink: 0;
+            cursor: col-resize;
+            background-color: rgba(55, 65, 81, 0.5); /* gray-700 with opacity */
+            transition: background-color 0.2s ease;
+        }
+        #resize-handle:hover {
+            background-color: rgba(59, 130, 246, 0.7); /* blue-500 with opacity */
+        }
+        #right-panel {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 0;
+            background-color: #0c0a09;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            background-color: #111827; /* gray-900 */
+        }
+        #left-panel::-webkit-scrollbar { width: 8px; }
+        #left-panel::-webkit-scrollbar-track { background: #1f2937; } /* gray-800 */
+        #left-panel::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; } /* gray-600 */
+        #left-panel::-webkit-scrollbar-thumb:hover { background: #6b7280; } /* gray-500 */
+
+        .btn { @apply text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed; }
+        .btn-green { @apply bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500; }
+        .btn-blue { @apply bg-sky-600 hover:bg-sky-700 focus:ring-sky-500; }
+        .btn-gray { @apply bg-gray-600 hover:bg-gray-700 focus:ring-gray-500; }
+    </style>
+</head>
+<body class="text-gray-200 flex flex-col h-screen">
+
+    <header class="text-center py-4 bg-gray-900/80 border-b border-gray-700/50" style="flex-shrink: 0;">
+        <h1 class="text-2xl md:text-3xl text-white font-bold tracking-tight">Perfect Number Visualizer</h1>
+    </header>
+
+    <div class="main-container">
+        <!-- Left Control Panel -->
+        <div id="left-panel">
+            <div>
+                <h2 class="text-lg font-semibold text-white mb-3 border-b border-gray-600 pb-2">Controls</h2>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="startPauseBtn" class="btn btn-green">Start</button>
+                        <button id="resetBtn" class="btn btn-gray">Reset</button>
+                    </div>
+                    <div>
+                        <label for="maxNumSlider" class="block text-sm font-medium text-gray-300">Search up to: <span id="maxNumValue">10000</span></label>
+                        <input id="maxNumSlider" type="range" min="100" max="50000" value="10000" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </div>
+                
+                <div class="mt-6 pt-4 border-t border-gray-600">
+                     <h3 class="text-md font-semibold text-white mb-2">Perfect Numbers</h3>
+                     <p class="text-gray-400 text-sm">
+                        A perfect number is a positive integer that is equal to the sum of its proper positive divisors. For example, 6 is perfect because its divisors (1, 2, 3) sum to 6.
+                     </p>
+                </div>
+                 <div class="mt-4">
+                    <h3 class="text-md font-semibold text-white mb-2">Found:</h3>
+                    <div id="foundNumbers" class="text-lg text-amber-400 font-bold text-center bg-gray-800/50 p-3 rounded-lg min-h-[40px]"></div>
+                </div>
+            </div>
+            <footer class="mt-auto pt-4">
+                <p class="text-xs text-gray-500 text-center">NitaD, Univ Paris-Saclay, 2025</p>
+            </footer>
+        </div>
+
+        <div id="resize-handle"></div>
+
+        <div id="right-panel">
+            <canvas id="perfectCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('perfectCanvas');
+            const ctx = canvas.getContext('2d');
+            const leftPanel = document.getElementById('left-panel');
+            const rightPanel = document.getElementById('right-panel');
+            const resizeHandle = document.getElementById('resize-handle');
+            const startPauseBtn = document.getElementById('startPauseBtn');
+            const resetBtn = document.getElementById('resetBtn');
+            const maxNumSlider = document.getElementById('maxNumSlider');
+            const maxNumValueSpan = document.getElementById('maxNumValue');
+            const foundNumbersDiv = document.getElementById('foundNumbers');
+
+            let isResizing = false;
+            let maxNumber = 10000;
+            let isRunning = false;
+            let numbers = [];
+            let perfectNumbersFound = [];
+            let searchHandle = null;
+            let currentNumber = 1;
+
+            const COLOR = {
+                BACKGROUND: '#111827',
+                DOT: 'rgba(255, 255, 255, 0.2)',
+                PERFECT: '#f59e0b', // amber-500
+                PERFECT_GLOW: 'rgba(245, 158, 11, 0.3)'
+            };
+
+            function getSpiralPosition(n) {
+                if (n === 1) return { x: 0, y: 0 };
+                const k = Math.floor((Math.sqrt(n - 1) - 1) / 2) + 1;
+                let t = 2 * k + 1;
+                let m = t * t;
+                t -= 1;
+                if (n >= m - t) return { x: k - (m - n), y: -k };
+                m -= t;
+                if (n >= m - t) return { x: -k, y: -k + (m - n) };
+                m -= t;
+                if (n >= m - t) return { x: -k + (m - n), y: k };
+                return { x: k, y: k - (m - n - t) };
+            }
+            
+            function isPerfect(n) {
+                if (n <= 1) return false;
+                let sum = 1;
+                for (let i = 2; i * i <= n; i++) {
+                    if (n % i === 0) {
+                        sum += i;
+                        if (i * i !== n) {
+                            sum += n / i;
+                        }
+                    }
+                }
+                return sum === n;
+            }
+
+            function setup() {
+                if (searchHandle) {
+                    cancelAnimationFrame(searchHandle);
+                    searchHandle = null;
+                }
+                isRunning = false;
+                currentNumber = 1;
+                startPauseBtn.textContent = 'Start';
+                startPauseBtn.disabled = false;
+                startPauseBtn.classList.remove('btn-blue', 'btn-gray');
+                startPauseBtn.classList.add('btn-green');
+                maxNumSlider.disabled = false;
+
+                maxNumber = parseInt(maxNumSlider.value);
+                maxNumValueSpan.textContent = maxNumber.toLocaleString();
+                perfectNumbersFound = [];
+                foundNumbersDiv.innerHTML = '';
+                
+                numbers = [];
+                for(let i = 1; i <= maxNumber; i++) {
+                    numbers.push({ pos: getSpiralPosition(i), isPerfect: false });
+                }
+                
+                resizeCanvas();
+            }
+
+            function resizeCanvas() {
+                canvas.width = rightPanel.clientWidth;
+                canvas.height = rightPanel.clientHeight;
+                draw();
+            }
+
+            function draw() {
+                ctx.fillStyle = COLOR.BACKGROUND;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                
+                const maxCoord = Math.sqrt(maxNumber) / 2;
+                const scale = Math.min(centerX, centerY) / (maxCoord + 2);
+
+                // --- Draw Spiral Line ---
+                if (numbers.length > 1) {
+                    ctx.beginPath();
+                    for (let i = 0; i < numbers.length; i++) {
+                        const num = numbers[i];
+                        const x = centerX + num.pos.x * scale;
+                        const y = centerY + num.pos.y * scale;
+                        if (i === 0) {
+                            ctx.moveTo(x, y);
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                    }
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+
+                // --- Draw Dots ---
+                for(let i = 0; i < numbers.length; i++) {
+                    const num = numbers[i];
+                    const x = centerX + num.pos.x * scale;
+                    const y = centerY + num.pos.y * scale;
+
+                    if (num.isPerfect) {
+                        const radius = Math.max(2, scale * 0.8);
+                        ctx.beginPath();
+                        ctx.arc(x, y, radius * 2.5, 0, 2 * Math.PI);
+                        ctx.fillStyle = COLOR.PERFECT_GLOW;
+                        ctx.fill();
+                        
+                        ctx.beginPath();
+                        ctx.arc(x, y, radius, 0, 2 * Math.PI);
+                        ctx.fillStyle = COLOR.PERFECT;
+                        ctx.fill();
+                    } else {
+                         const radius = Math.max(0.5, scale * 0.2);
+                         ctx.beginPath();
+                         ctx.arc(x, y, radius, 0, 2 * Math.PI);
+                         ctx.fillStyle = COLOR.DOT;
+                         ctx.fill();
+                    }
+                }
+            }
+            
+            function searchLoop() {
+                if (!isRunning) return;
+
+                const batchSize = 200; 
+                for (let i = 0; i < batchSize && currentNumber <= maxNumber; i++) {
+                    if (isPerfect(currentNumber)) {
+                        perfectNumbersFound.push(currentNumber);
+                        foundNumbersDiv.innerHTML = perfectNumbersFound.join(', ');
+                        if (currentNumber <= numbers.length) {
+                           numbers[currentNumber - 1].isPerfect = true;
+                           draw(); // Redraw immediately when one is found
+                        }
+                    }
+                    currentNumber++;
+                }
+
+                if (currentNumber > maxNumber) {
+                    isRunning = false;
+                    startPauseBtn.textContent = 'Done';
+                    startPauseBtn.disabled = true;
+                    startPauseBtn.classList.remove('btn-green', 'btn-blue');
+                    startPauseBtn.classList.add('btn-gray');
+                } else {
+                    searchHandle = requestAnimationFrame(searchLoop);
+                }
+            }
+
+            startPauseBtn.addEventListener('click', () => {
+                isRunning = !isRunning;
+                if (isRunning) {
+                    startPauseBtn.textContent = 'Pause';
+                    startPauseBtn.classList.remove('btn-green');
+                    startPauseBtn.classList.add('btn-blue');
+                    maxNumSlider.disabled = true;
+                    searchLoop();
+                } else {
+                    startPauseBtn.textContent = 'Resume';
+                    startPauseBtn.classList.remove('btn-blue');
+                    startPauseBtn.classList.add('btn-green');
+                    if (searchHandle) {
+                        cancelAnimationFrame(searchHandle);
+                        searchHandle = null;
+                    }
+                }
+            });
+
+            resetBtn.addEventListener('click', setup);
+            
+            maxNumSlider.addEventListener('input', (e) => {
+                maxNumValueSpan.textContent = parseInt(e.target.value).toLocaleString();
+            });
+            maxNumSlider.addEventListener('change', setup);
+
+            resizeHandle.addEventListener('mousedown', () => { isResizing = true; document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; });
+            document.addEventListener('mousemove', (e) => { if (isResizing) { const newWidth = e.clientX; if (newWidth > 250 && newWidth < window.innerWidth - 250) { leftPanel.style.flexBasis = `${newWidth}px`; resizeCanvas(); } } });
+            document.addEventListener('mouseup', () => { isResizing = false; document.body.style.cursor = 'default'; document.body.style.userSelect = ''; });
+            window.addEventListener('resize', resizeCanvas);
+
+            setup();
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+

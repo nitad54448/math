@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catalan Numbers Visualizer</title>
+    <link href="./dist/output.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0c0a09; /* stone-950 */
+            overflow: hidden;
+        }
+        .main-container {
+            display: flex;
+            height: calc(100vh - 65px);
+        }
+        #left-panel {
+            flex-basis: 320px;
+            flex-shrink: 0;
+            min-width: 250px;
+            background: rgba(17, 24, 39, 0.8); /* bg-gray-900 with opacity */
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+        #resize-handle {
+            flex-basis: 6px;
+            flex-shrink: 0;
+            cursor: col-resize;
+            background-color: rgba(55, 65, 81, 0.5); /* gray-700 with opacity */
+            transition: background-color 0.2s ease;
+        }
+        #resize-handle:hover {
+            background-color: rgba(59, 130, 246, 0.7); /* blue-500 with opacity */
+        }
+        #right-panel {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 0;
+            background-color: #0c0a09;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            background-color: #111827; /* gray-900 */
+        }
+        #left-panel::-webkit-scrollbar { width: 8px; }
+        #left-panel::-webkit-scrollbar-track { background: #1f2937; } /* gray-800 */
+        #left-panel::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; } /* gray-600 */
+        #left-panel::-webkit-scrollbar-thumb:hover { background: #6b7280; } /* gray-500 */
+
+        /* Custom styles for buttons */
+        .btn {
+            @apply text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900;
+        }
+        .btn-green {
+            @apply bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500;
+        }
+        .btn-blue {
+            @apply bg-sky-600 hover:bg-sky-700 focus:ring-sky-500;
+        }
+        .btn-gray {
+            @apply bg-gray-600 hover:bg-gray-700 focus:ring-gray-500;
+        }
+
+    </style>
+</head>
+<body class="text-gray-200 flex flex-col h-screen">
+
+    <header class="text-center py-4 bg-gray-900/80 border-b border-gray-700/50" style="flex-shrink: 0;">
+        <h1 class="text-2xl md:text-3xl text-white font-bold tracking-tight">Catalan Numbers Visualizer</h1>
+    </header>
+
+    <div class="main-container">
+        <!-- Left Control Panel -->
+        <div id="left-panel">
+            <div>
+                <h2 class="text-lg font-semibold text-white mb-3 border-b border-gray-600 pb-2">Controls</h2>
+                <div class="space-y-4">
+                    <!-- Control Buttons -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="startPauseBtn" class="btn btn-green">Start</button>
+                        <button id="resetBtn" class="btn btn-gray">Reset</button>
+                    </div>
+
+                    <!-- Sliders -->
+                    <div>
+                        <label for="nSlider" class="block text-sm font-medium text-gray-300">Catalan Number (n): <span id="nValue">5</span></label>
+                        <input id="nSlider" type="range" min="1" max="100" value="5" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label for="speedSlider" class="block text-sm font-medium text-gray-300">Animation Speed: <span id="speedValue">50</span>ms</label>
+                        <input id="speedSlider" type="range" min="10" max="200" value="50" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </div>
+                
+                <!-- Description -->
+                <div class="mt-6 pt-4 border-t border-gray-600">
+                     <h3 class="text-md font-semibold text-white mb-2">Catalan Numbers & Dyck Paths</h3>
+                     <p id="description" class="text-gray-400 text-sm">
+                        A sequence of numbers that appear in many counting problems. C(n) gives the number of paths from the bottom-left to top-right of an n x n grid, using only steps right and up, without crossing the main diagonal. This animation shows one such path.
+                     </p>
+                     <p id="catalanResult" class="text-lg text-amber-400 font-bold mt-4 text-center">C(5) = 42</p>
+                </div>
+            </div>
+            <footer class="mt-auto pt-4">
+                <p class="text-xs text-gray-500 text-center">NitaD, Univ Paris-Saclay, 2025.</p>
+            </footer>
+        </div>
+
+        <!-- Resizer -->
+        <div id="resize-handle"></div>
+
+        <!-- Right Canvas Panel -->
+        <div id="right-panel">
+            <canvas id="catalanCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Element References ---
+            const canvas = document.getElementById('catalanCanvas');
+            const ctx = canvas.getContext('2d');
+            const leftPanel = document.getElementById('left-panel');
+            const rightPanel = document.getElementById('right-panel');
+            const resizeHandle = document.getElementById('resize-handle');
+
+            const startPauseBtn = document.getElementById('startPauseBtn');
+            const resetBtn = document.getElementById('resetBtn');
+
+            const nSlider = document.getElementById('nSlider');
+            const nValueSpan = document.getElementById('nValue');
+            const speedSlider = document.getElementById('speedSlider');
+            const speedValueSpan = document.getElementById('speedValue');
+            const catalanResult = document.getElementById('catalanResult');
+
+            // --- State Variables ---
+            let isResizing = false;
+            let n = 5;
+            let speed = 50;
+            let animationInterval = null;
+            let isRunning = false;
+            
+            let path = [];
+            let currentPath = [];
+            let currentStep = 0;
+
+
+            // --- Colors ---
+            const COLOR = {
+                BACKGROUND: '#111827',
+                GRID: 'rgba(255, 255, 255, 0.1)',
+                DIAGONAL: 'rgba(255, 0, 0, 0.3)',
+                PATH: '#f59e0b', // amber-500
+                ENDPOINT: '#10b981' // emerald-500
+            };
+            
+             // --- Catalan Logic ---
+            const factorial = (num) => {
+                let rval = 1;
+                for (let i = 2; i <= num; i++) rval = rval * i;
+                return rval;
+            }
+            
+            // Using BigInt for larger numbers to avoid precision issues
+            const combinations = (n, k) => {
+                if (k < 0 || k > n) {
+                    return 0;
+                }
+                if (k === 0 || k === n) {
+                    return 1n;
+                }
+                if (k > n / 2) {
+                    k = n - k;
+                }
+                let res = 1n;
+                for (let i = 1; i <= k; i++) {
+                    res = res * BigInt(n - i + 1) / BigInt(i);
+                }
+                return res;
+            }
+
+            const calculateCatalan = (num) => {
+                const C_2n_n = combinations(2 * num, num);
+                return C_2n_n / BigInt(num + 1);
+            }
+
+            function generateDyckPath(size) {
+                let x = 0, y = 0;
+                const moves = [];
+                while (x < size || y < size) {
+                    const canMoveUp = y < size && y < x;
+                    const canMoveRight = x < size;
+
+                    let move;
+                    if (canMoveUp && canMoveRight) {
+                        move = Math.random() < 0.5 ? 'U' : 'R';
+                    } else if (canMoveRight) {
+                        move = 'R';
+                    } else {
+                        move = 'U';
+                    }
+
+                    if (move === 'R') x++;
+                    else y++;
+                    moves.push({ x, y });
+                }
+                return [{x: 0, y: 0}, ...moves];
+            }
+
+
+            // --- Setup and Initialization ---
+            function setup() {
+                clearInterval(animationInterval);
+                isRunning = false;
+                startPauseBtn.textContent = 'Start';
+                startPauseBtn.disabled = false;
+                startPauseBtn.classList.remove('btn-blue');
+                startPauseBtn.classList.add('btn-green');
+
+                n = parseInt(nSlider.value);
+                nValueSpan.textContent = n;
+                speed = parseInt(speedSlider.value);
+                speedValueSpan.textContent = `${speed}ms`;
+                catalanResult.textContent = `C(${n}) = ${calculateCatalan(n)}`;
+
+                path = generateDyckPath(n);
+                currentPath = [];
+                currentStep = 0;
+
+                resizeCanvas(); 
+            }
+
+            // --- Canvas and Drawing ---
+            function resizeCanvas() {
+                canvas.width = rightPanel.clientWidth;
+                canvas.height = rightPanel.clientHeight;
+                draw();
+            }
+
+            function draw() {
+                ctx.fillStyle = COLOR.BACKGROUND;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                const padding = 40;
+                const gridSize = Math.min(canvas.width - 2 * padding, canvas.height - 2 * padding);
+                const cellSize = gridSize / n;
+                const startX = (canvas.width - gridSize) / 2;
+                const startY = (canvas.height + gridSize) / 2; // Start from bottom-left
+
+                // Draw grid
+                ctx.strokeStyle = COLOR.GRID;
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= n; i++) {
+                    // Vertical lines
+                    ctx.beginPath();
+                    ctx.moveTo(startX + i * cellSize, startY);
+                    ctx.lineTo(startX + i * cellSize, startY - gridSize);
+                    ctx.stroke();
+                    // Horizontal lines
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY - i * cellSize);
+                    ctx.lineTo(startX + gridSize, startY - i * cellSize);
+                    ctx.stroke();
+                }
+
+                // Draw diagonal
+                ctx.strokeStyle = COLOR.DIAGONAL;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(startX + gridSize, startY - gridSize);
+                ctx.stroke();
+
+                // Draw path
+                if (currentPath.length > 1) {
+                    ctx.strokeStyle = COLOR.PATH;
+                    ctx.lineWidth = Math.max(2, cellSize * 0.1);
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(startX + currentPath[0].x * cellSize, startY - currentPath[0].y * cellSize);
+                    for(let i = 1; i < currentPath.length; i++) {
+                        const point = currentPath[i];
+                        ctx.lineTo(startX + point.x * cellSize, startY - point.y * cellSize);
+                    }
+                    ctx.stroke();
+                }
+                
+                // Draw endpoint
+                if(currentPath.length > 0) {
+                     const lastPoint = currentPath[currentPath.length-1];
+                     ctx.fillStyle = COLOR.ENDPOINT;
+                     ctx.beginPath();
+                     ctx.arc(startX + lastPoint.x * cellSize, startY - lastPoint.y * cellSize, Math.max(3, cellSize * 0.15), 0, 2 * Math.PI);
+                     ctx.fill();
+                }
+            }
+
+
+            // --- Animation Logic ---
+            function animationStep() {
+                if(currentStep >= path.length) {
+                    finalize();
+                    return;
+                }
+                currentPath.push(path[currentStep]);
+                currentStep++;
+                draw();
+            }
+
+            function finalize() {
+                clearInterval(animationInterval);
+                isRunning = false;
+                startPauseBtn.textContent = 'Done';
+                startPauseBtn.disabled = true;
+            }
+
+            // --- Event Listeners ---
+            startPauseBtn.addEventListener('click', () => {
+                if(currentStep >= path.length) return; // Don't start if done
+                isRunning = !isRunning;
+                if (isRunning) {
+                    startPauseBtn.textContent = 'Pause';
+                    startPauseBtn.classList.remove('btn-green');
+                    startPauseBtn.classList.add('btn-blue');
+                    animationInterval = setInterval(animationStep, speed);
+                } else {
+                    startPauseBtn.textContent = 'Resume';
+                    startPauseBtn.classList.remove('btn-blue');
+                    startPauseBtn.classList.add('btn-green');
+                    clearInterval(animationInterval);
+                }
+            });
+
+            resetBtn.addEventListener('click', setup);
+            
+            nSlider.addEventListener('input', (e) => {
+                nValueSpan.textContent = e.target.value;
+                 catalanResult.textContent = `C(${e.target.value}) = ${calculateCatalan(parseInt(e.target.value))}`;
+            });
+            nSlider.addEventListener('change', setup);
+            
+            speedSlider.addEventListener('input', (e) => {
+                speed = parseInt(e.target.value);
+                speedValueSpan.textContent = `${speed}ms`;
+                if(isRunning) {
+                    clearInterval(animationInterval);
+                    animationInterval = setInterval(animationStep, speed);
+                }
+            });
+
+            resizeHandle.addEventListener('mousedown', () => { isResizing = true; document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; });
+            document.addEventListener('mousemove', (e) => { if (isResizing) { const newWidth = e.clientX; if (newWidth > 250 && newWidth < window.innerWidth - 250) { leftPanel.style.flexBasis = `${newWidth}px`; resizeCanvas(); } } });
+            document.addEventListener('mouseup', () => { isResizing = false; document.body.style.cursor = 'default'; document.body.style.userSelect = ''; });
+            window.addEventListener('resize', resizeCanvas);
+
+
+            // --- Initial Setup ---
+            setup();
+        });
+    </script>
+</body>
+</html>
+
+
